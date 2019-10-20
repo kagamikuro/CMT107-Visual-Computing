@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="Jogl3s">
+    <CLASSES />
+    <JAVADOC>
+      <root url="file://$USER_HOME$/Jogl3S/doc/gluegen/javadoc" />
+      <root url="file://$USER_HOME$/Jogl3S/doc/jogl/javadoc" />
+      <root url="file://$USER_HOME$/Jogl3S/doc/jogl/javadoc_jogl_spec" />
+      <root url="file://$USER_HOME$/Jogl3S/doc/jogl/javadoc_nativewindow_spec" />
+    </JAVADOC>
+    <SOURCES />
+  </library>
+</component>
