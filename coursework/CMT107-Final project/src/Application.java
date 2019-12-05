@@ -1,31 +1,48 @@
+import Basic.ShaderProg;
+import Basic.Transform;
+import Basic.Vec4;
+import Objects.*;
+
 import java.awt.*;
 import java.awt.event.*;
-
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import javax.imageio.ImageIO;
+import javax.swing.*;
+
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
 
 import com.jogamp.opengl.*;
 import com.jogamp.opengl.awt.GLCanvas;
-
 import static com.jogamp.opengl.GL.*;
-import static com.jogamp.opengl.GL2GL3.GL_LINE;
-
 import com.jogamp.opengl.util.FPSAnimator;
+
+import com.jogamp.opengl.util.GLBuffers;
+import com.jogamp.opengl.util.texture.TextureData;
+import com.jogamp.opengl.util.texture.TextureIO;
+
+import java.io.File;
+
+
 
 public class Application extends JFrame implements GLEventListener, MouseListener, MouseMotionListener, ActionListener,ItemListener,KeyListener {
 
+
+    //repaint the window by 60 FPS
     final FPSAnimator animator=new FPSAnimator(60, true);
+
+    // The OpenGL profile
+    GLProfile glp;
+
+    private IntBuffer textureNames = GLBuffers.newDirectIntBuffer(1);
+
 
     // Define a Transformation instance
     // Transformation matrix is initialised as Identity;
@@ -42,35 +59,15 @@ public class Application extends JFrame implements GLEventListener, MouseListene
     String[] a = {"brass","bronze","chrome","gold","pewter","silver","emerald"};
     JComboBox jcombo = new JComboBox(a);
 
+
+    //Declare some JtextField for lighting
     JButton lightButton = new JButton("set light position");
+    JButton cameraButton = new JButton("camera introduction");
 
     JTextField lightX = new JTextField(String.valueOf(100));
     JTextField lightY = new JTextField(String.valueOf(100));
     JTextField lightZ = new JTextField(String.valueOf(100));
 
-
-
-    private int idPoint = 0, numVAOs = 3;
-    private int idBuffer = 0, numVBOs = 3;
-    private int idElement=0, numEBOs = 3;
-    private int vPosition = 0;
-
-    private int[] VAOs = new int[numVAOs];
-    private int[] VBOs = new int[numVBOs];
-    private int[] EBOs = new int[numEBOs];
-
-    //Model parameters
-    private int[] numElements = new int[numEBOs];
-
-    private int vNormal;
-
-    private long vertexSize;
-    private int vColor;
-
-    //material
-
-    int program;
-    int program2;
     // Initialize shader lighting parameters
     float light_x = 100.0f;
     float light_y = 100.0f;
@@ -81,22 +78,45 @@ public class Application extends JFrame implements GLEventListener, MouseListene
     Vec4 lightSpecular = new Vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
 
-
+    //define a initial material(Brass)
     Vec4 materialAmbient = new Vec4(0.329412f, 0.223529f, 0.027451f, 1.0f);
     Vec4 materialDiffuse = new Vec4(0.780392f, 0.568627f, 0.113725f, 1.0f);
     Vec4 materialSpecular = new Vec4(0.992157f, 0.941176f, 0.807843f, 1.0f);
     float  materialShininess = 27.8974f;
 
+
+    //a flag to show whether the lighting should be changed
     boolean isLightingChange = true;
 
 
-    //Transformation parameters
+    //VAO,VBO and EBO
+    private int idPoint = 0, numVAOs = 3;
+    private int idBuffer = 0, numVBOs = 3;
+    private int idElement=0, numEBOs = 3;
+
+
+    private int[] VAOs = new int[numVAOs];
+    private int[] VBOs = new int[numVBOs];
+    private int[] EBOs = new int[numEBOs];
+    private int[] numElements = new int[numEBOs];
+
+
+    //Model parameters
+
+
+    int program;
+
+    private int vNormal;
+    private long vertexSize;
+    private int vColor;
     private int ModelView;
     private int NormalTransform;
     private int Projection;
-    private int ModelView2;
-    private int NormalTransform2;
-    private int Projection2;
+    private int vPosition = 0;
+
+
+
+    //Transformation parameters
 
 
     private float scale = 0.5f;
@@ -118,12 +138,15 @@ public class Application extends JFrame implements GLEventListener, MouseListene
     //texture parameters
     ByteBuffer texImg;
     private int texWidth, texHeight;
+    int texture;
+
 
     public Application() {
-        //The UI design
+        //The UI design and set listener for components
 
         JPanel panel = new JPanel();
         panel.setLayout(new FlowLayout(FlowLayout.CENTER));
+        panel.setBackground(new Color(0x00CCFF));
 
         JLabel lsLabel = new JLabel("-Light Source Type-");
         lsLabel.setForeground(Color.BLUE);
@@ -137,8 +160,6 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         JLabel lpLabel = new JLabel("-Light Position-");
         lpLabel.setForeground(Color.BLUE);
         panel.add(lpLabel);
-
-
 
 
         panel.add(new Label("      X:     "));
@@ -157,15 +178,20 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         lightButton.addActionListener(this);
         panel.add(lightButton);
 
+
+        panel.add(new Label("           "));
+        JLabel cameraLabel = new JLabel("-How to control camera-");
+        cameraLabel.setForeground(Color.BLUE);
+        panel.add(cameraLabel);
+
+        cameraButton.addActionListener(this);
+        panel.add(cameraButton);
+
         panel.setPreferredSize(new Dimension(150,800));
-
-
-
         this.add(BorderLayout.EAST,panel);
 
-
         //getting the capability object of GL3 profile
-        GLProfile glp = GLProfile.get(GLProfile.GL3);
+        glp = GLProfile.get(GLProfile.GL3);
         GLCapabilities caps = new GLCapabilities(glp);
 
         //The canvas
@@ -197,6 +223,11 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         animator.start();
     }
 
+    /**
+     * this method is for copying object data(vertice,normals...) to the buffer
+     * @param gl GL pipeline object
+     * @param object the specific 3D object
+     */
 
     private void createObject(GL3 gl, SObject object) {
         float [] vertexArray = object.getVertices();
@@ -206,7 +237,8 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
         numElements[idElement] = object.getNumIndices();
 
-        gl.glGenVertexArrays(numVAOs,VAOs,0);
+
+        //gl.glGenVertexArrays(numVAOs,VAOs,0);
         gl.glBindVertexArray(VAOs[idPoint]);
 
         FloatBuffer vertices = FloatBuffer.wrap(vertexArray);
@@ -214,13 +246,14 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         FloatBuffer textures = FloatBuffer.wrap(texCoord);
 
 
-
-        gl.glGenBuffers(numVBOs, VBOs,0);
+        //gl.glGenBuffers(numVBOs, VBOs,0);
         gl.glBindBuffer(GL_ARRAY_BUFFER, VBOs[idBuffer]);
+
+
 
         // Create an empty buffer with the size we need
         // and a null pointer for the data values
-        long vertexSize = vertexArray.length*(Float.SIZE/8);
+        vertexSize = vertexArray.length*(Float.SIZE/8);
         long normalSize = normalArray.length*(Float.SIZE/8);
         gl.glBufferData(GL_ARRAY_BUFFER, vertexSize +normalSize,
                 null, GL_STATIC_DRAW); // pay attention to *Float.SIZE/8
@@ -232,11 +265,13 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
         IntBuffer elements = IntBuffer.wrap(vertexIndexs);
 
-        gl.glGenBuffers(numEBOs, EBOs,0);
+        //gl.glGenBuffers(numEBOs, EBOs,0);
         gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[idElement]);
 
 
+
         long indexSize = vertexIndexs.length*(Integer.SIZE/8);
+
         gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexSize,
                 elements, GL_STATIC_DRAW); // pay attention to *Float.SIZE/8
 
@@ -244,11 +279,17 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
     }
 
+
+    /**
+     * this method is for binding object
+     * @param gl GL pipeline object
+     */
     private void bindObject(GL3 gl){
         gl.glBindVertexArray(VAOs[idPoint]);
         gl.glBindBuffer(GL_ARRAY_BUFFER, VBOs[idBuffer]);
         gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[idElement]);
-    };
+    }
+
 
 
     /**
@@ -269,7 +310,12 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
 
 
+        gl.glGenVertexArrays(numVAOs,VAOs,0);
+        gl.glGenBuffers(numVBOs, VBOs,0);
+        gl.glGenBuffers(numEBOs, EBOs,0);
+
         //create the first object: a sphere
+
         SObject sphere = new SSphere(1,40,40);
         idPoint=0;
         idBuffer=0;
@@ -277,49 +323,36 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         createObject(gl, sphere);
 
 
+        setupShader(gl);
+
+
 
         //******************************************
         //create the second object: a teapot
-        //using the STeapot class provided
+        //using the Objects.STeapot class provided
         SObject teapot = new STeapot(2);
         idPoint=1;
         idBuffer=1;
         idElement=1;
-        //createObject(gl, teapot);
+        createObject(gl, teapot);
 
-        //compile and use the shader program
-        ShaderProg shaderproc = new ShaderProg(gl, "Gouraud.vert", "Gouraud.frag");
-        program = shaderproc.getProgram();
-        //System.out.println("program: "+program);
-        gl.glUseProgram(program);
+        setupShader(gl);
 
-        // Initialize the vertex position attribute in the vertex shader
-        vPosition = gl.glGetAttribLocation( program, "vPosition" );
-        gl.glEnableVertexAttribArray(vPosition);
-        gl.glVertexAttribPointer(vPosition, 3, GL_FLOAT, false, 0, 0L);
 
-        // Initialize the vertex color attribute in the vertex shader.
-        // The offset is the same as in the glBufferSubData, i.e., vertexSize
-        // It is the starting point of the color data
-        vNormal = gl.glGetAttribLocation( program, "vNormal" );
-        gl.glEnableVertexAttribArray(vNormal);
-        gl.glVertexAttribPointer(vNormal, 3, GL_FLOAT, false, 0, vertexSize);
+        //******************************************
+        //create the third object: a Rugby
+        //using the Objects.STeapot class provided
+        SObject rugby = new Rugby();
+        idPoint=2;
+        idBuffer=2;
+        idElement=2;
+        createObject(gl,rugby);
 
-        //Get connected with the ModelView matrix in the vertex shader
-        ModelView = gl.glGetUniformLocation(program, "ModelView");
-        NormalTransform = gl.glGetUniformLocation(program, "NormalTransform");
-        Projection = gl.glGetUniformLocation(program, "Projection");
+        setupShader(gl);
 
-        /*
-        try {
-            texImg = readImage("WelshDragon.jpg");
-        } catch (IOException ex) {
-            Logger.getLogger(getClass().getName()).log(Level.SEVERE, null, ex);
-        }
 
-        */
 
-        //textureMapping(gl);
+        textureMapping(gl);
         // This is necessary. Otherwise, the The color on back face may display
 //		    gl.glDepthFunc(GL_LESS);
         gl.glEnable(GL_DEPTH_TEST);
@@ -340,8 +373,7 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
     }
 
-    int teapot_rotateY=1;
-    int sphere_rotateX=1;
+
 
     /**
      * Called by the drawable to initiate OpenGL rendering by the client.
@@ -357,53 +389,37 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
 
         if(isLightingChange == true) {
-           lightingControl(gl);
-           System.out.println("light called");
-           isLightingChange = false;
+            lightingControl(gl);
+            System.out.println("light called");
+            isLightingChange = false;
 
 
         }
 
-        //gl.glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
-        if(teapot_rotateY == 1) {
-            //textureMapping(gl);
-            System.out.println("texture method called");
-
-        }
-        teapot_rotateY ++;
 
         gl.glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-        //gl.glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
 
         //Transformation for the first object (sphere)
         T.initialize();
         //******************************************
-        //Add code here to transform (including scale)
-        //T.translate((float)-2,(float)0,(float)-1.9);
-        //T.scale((float)0.3,(float)0.3,(float)0.3);
-        //T.rotateX(270);
-        //T.rotateY(0);
-        //sphere_rotateX++;
-        //the first object (sphere) to appropriate location
 
-        T.scale(scale, scale, scale);
-        T.rotateX(rx);
-        T.rotateY(ry);
-        T.translate(tx, ty, 0);
+        T.translate((float)2,(float)0,(float)-1.9);
+        T.scale((float)0.3,(float)0.3,(float)0.3);
+        T.rotateX(270);
+        T.rotateY(0);
 
-
-        //Locate camera
-        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);  	//Default
-        //T.lookAt((float) -0.5, (float)-0.5, 0, 0, 0, -100, 0, 1, 0);  	//Default
 
         //Send model_view and normal transformation matrices to shader.
         //Here parameter 'true' for transpose means to convert the row-major
         //matrix to column major one, which is required when vertices'
         //location vectors are pre-multiplied by the model_view matrix.
 
-        //System.out.println("modelView = "+ModelView+", NormalTransform = "+NormalTransform);
+
+        //Locate camera
+        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);  	//Default
+
         gl.glUniformMatrix4fv( ModelView, 1, true, T.getTransformv(), 0 );
         gl.glUniformMatrix4fv( NormalTransform, 1, true, T.getInvTransformTv(), 0 );
 
@@ -412,33 +428,62 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         idBuffer=0;
         idElement=0;
         bindObject(gl);
+
         gl.glDrawElements(GL_TRIANGLES, numElements[idElement], GL_UNSIGNED_INT, 0);
 
-        //******************************************
-        //Add transformation, binding and drawing code here
 
-        //******************************************
-        //Add code here to transform (including scale)
-        /*
+
         T.initialize();
 
-        T.translate((float)0.2,(float)0,(float)2.3);
-        T.scale((float)0.2,(float)0.2,(float)0.2);
+        //Locate camera
+        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);
+
+
+
+        T.translate((float)1,(float)2,(float)0);
         T.rotateX(270);
         T.rotateY(0);
-        //teapot_rotateY++;
+        T.scale((float)0.1,(float)0.1,(float)0.1);
+
 
         gl.glUniformMatrix4fv( ModelView, 1, true, T.getTransformv(), 0 );
         gl.glUniformMatrix4fv( NormalTransform, 1, true, T.getInvTransformTv(), 0 );
+
         //to put the second object (teapot) to appropriate place
         idPoint=1;
         idBuffer=1;
         idElement=1;
         bindObject(gl);
+
         gl.glDrawElements(GL_TRIANGLES, numElements[idElement], GL_UNSIGNED_INT, 0);
 
-        */
 
+
+
+        T.initialize();
+
+        //Locate camera
+        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);  	//Default
+
+        T.translate((float)-1,(float)2,(float)0);
+        T.scale((float)0.3,(float)0.3,(float)0.3);
+
+
+        gl.glUniformMatrix4fv( ModelView, 1, true, T.getTransformv(), 0 );
+        gl.glUniformMatrix4fv( NormalTransform, 1, true, T.getInvTransformTv(), 0 );
+
+
+        //to put the third object (rugby) to appropriate place
+        idPoint=2;
+        idBuffer=2;
+        idElement=2;
+        bindObject(gl);
+
+        //to map texture to the third object
+        gl.glEnable(GL3.GL_TEXTURE_2D);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, textureNames.get(0));
+
+        gl.glDrawElements(GL_TRIANGLES, numElements[idElement], GL_UNSIGNED_INT, 0);
 
 
     }
@@ -511,6 +556,11 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
     }
 
+
+    /**
+     *The called once every time the mouse moves while a mouse button is pressed.
+     * @param e
+     */
     @Override
     public void mouseDragged(MouseEvent e) {
         int x = e.getX();
@@ -565,21 +615,36 @@ public class Application extends JFrame implements GLEventListener, MouseListene
     public static void main(String[] args) {
         Application app = new Application();
 
-    }//end of main
+    }
 
-
+    /**
+     *
+     * @param e
+     */
     @Override
     public void actionPerformed(ActionEvent e) {
         if(e.getSource() == lightButton) {
-            float x = Float.parseFloat(lightX.getText());
-            float y = Float.parseFloat(lightY.getText());
-            float z = Float.parseFloat(lightZ.getText());
-            System.out.println("x="+x+" y="+y+" z="+z);
-            lightPosition[0] = x;
-            lightPosition[1] = y;
-            lightPosition[2] = z;
-            isLightingChange = true;
+            try {
+                float x = Float.parseFloat(lightX.getText());
+                float y = Float.parseFloat(lightY.getText());
+                float z = Float.parseFloat(lightZ.getText());
+                lightPosition[0] = x;
+                lightPosition[1] = y;
+                lightPosition[2] = z;
+                System.out.println("lighting position changed: x=" + x + " y=" + y + " z=" + z);
+                isLightingChange = true;
+            }
+            catch(Exception ex){
+                System.out.println("please input numbers!");
+            }
+        }
+        if(e.getSource() == cameraButton) {
 
+            System.out.println("camera Button");
+            JDialog introduction = new JDialog(this);
+            introduction.add(new JLabel("Firstly click left part to get the focus,Then control camera:w-Up s-Down a-Left d-Right i-Close k-Away"));
+            introduction.setBounds(620,320,750,100);
+            introduction.setVisible(true);
         }
     }
 
@@ -593,6 +658,41 @@ public class Application extends JFrame implements GLEventListener, MouseListene
         }
     }
 
+    /**
+     * this method is for getting relevant data from shader files and setup shader
+     * @param gl GL pipeline object
+     */
+    private void setupShader(GL3 gl){
+        //compile and use the shader program
+        ShaderProg shaderproc = new ShaderProg(gl, "Gouraud.vert", "Gouraud.frag");
+        program = shaderproc.getProgram();
+        //System.out.println("program: "+program);
+        gl.glUseProgram(program);
+
+        // Initialize the vertex position attribute in the vertex shader
+        vPosition = gl.glGetAttribLocation( program, "vPosition" );
+        gl.glEnableVertexAttribArray(vPosition);
+        gl.glVertexAttribPointer(vPosition, 3, GL_FLOAT, false, 0, 0L);
+
+        // Initialize the vertex color attribute in the vertex shader.
+        // The offset is the same as in the glBufferSubData, i.e., vertexSize
+        // It is the starting point of the color data
+        vNormal = gl.glGetAttribLocation( program, "vNormal" );
+        gl.glEnableVertexAttribArray(vNormal);
+        gl.glVertexAttribPointer(vNormal, 3, GL_FLOAT, false, 0, vertexSize);
+
+        //Get connected with the ModelView matrix in the vertex shader
+        ModelView = gl.glGetUniformLocation(program, "ModelView");
+        NormalTransform = gl.glGetUniformLocation(program, "NormalTransform");
+        Projection = gl.glGetUniformLocation(program, "Projection");
+
+    }
+
+
+    /**
+     *  select different kinds of lighting material and set up lighting
+     * @param gl GL pipeline object
+     */
     private void lightingControl(GL3 gl){
 
         switch (String.valueOf(material)) {
@@ -699,85 +799,68 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
     }
 
+    /**
+     * this method implemented texture mapping though the shader
+     * @param gl GL pipeline object
+     */
     private void textureMapping(GL3 gl){
 
 
+        try {
+            // Load texture
+            glp = GLProfile.get(GLProfile.GL3);
 
+            TextureData textureData = TextureIO.newTextureData(glp, new File("WelshDragon.jpg"), false, TextureIO.JPG);
 
-        //for texture mapping
-        // Step 1: Create a texture object and specify a texture for that object
-        // The following statements are mainly for multiple textures
-        // It is not necessary for a single texture
-//	        gl.glGenTextures(1, texName, 0);
-//	        gl.glBindTexture(GL_TEXTURE_2D, texName[0]);
-        gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texWidth, texHeight,
-                0, GL_BGR, GL_UNSIGNED_BYTE, texImg);  // specify texture image
+            // Generate texture name
+            gl.glGenTextures(1, textureNames);
 
+            // Bind the texture
+            gl.glBindTexture(gl.GL_TEXTURE_2D, textureNames.get(0));
 
-        //Step 2: Indicate how the texture is to be applied to each pixel
-//	        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //default setting GL_REPEAT
-//	        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT); //default setting GL_REPEAT
-//	        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);  //must be specified, this line is necessary when using OpenGL core functions for texture mapping.
+            // Specify the format of the texture
+            gl.glTexImage2D(gl.GL_TEXTURE_2D,
+                    0,
+                    textureData.getInternalFormat(),
+                    textureData.getWidth(),
+                    textureData.getHeight(),
+                    textureData.getBorder(),
+                    textureData.getPixelFormat(),
+                    textureData.getPixelType(),
+                    textureData.getBuffer());
 
-        //Step3: Enable texture mapping
-        //It's not necessary for the new version of OpenGL if only one texture is used.
-//	        gl.glEnable(GL_TEXTURE_2D); //must be enabled for old version of OpenGL
-//	        gl.glActiveTexture( GL_TEXTURE0 ); //specify which texture is used
-//	        gl.glBindTexture( GL_TEXTURE_2D, texName[0] );
+            System.out.println(textureData.toString());
 
+            // Set the sampler parameters
+            gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-        ShaderProg shaderproc2 = new ShaderProg(gl, "ColourTex.vert", "ColourTex.frag");
-        program2 = shaderproc2.getProgram();
-        gl.glUseProgram(program2);
+            // Generate mip maps
+            gl.glGenerateMipmap(GL_TEXTURE_2D);
 
-        // Initialize the vertex position attribute in the vertex shader
-        int vPosition = gl.glGetAttribLocation( program, "vPosition" );
-        gl.glEnableVertexAttribArray(vPosition);
-        gl.glVertexAttribPointer(vPosition, 3, GL_FLOAT, false, 0, 0L);
+            // Deactivate texture
+            gl.glBindTexture(GL_TEXTURE_2D, 0);
 
-        // Initialize the vertex color attribute in the vertex shader.
-        // The offset is the same as in the glBufferSubData, i.e., vertexSize
-        // It is the starting point of the color data
-        int vColour = gl.glGetAttribLocation( program, "vColour" );
-        gl.glEnableVertexAttribArray(vColour);
-        gl.glVertexAttribPointer(vColour, 3, GL_FLOAT, false, 0, vertexSize);
-
-
-        int vTexCoord = gl.glGetAttribLocation( program2, "vTexCoord" );
-        gl.glEnableVertexAttribArray( vTexCoord );
-        gl.glVertexAttribPointer( vTexCoord, 2, GL_FLOAT, false, 0, vertexSize);
-
-        //Get connected with the ModelView matrix in the vertex shader
-        ModelView = gl.glGetUniformLocation(program2, "ModelView");
-        NormalTransform = gl.glGetUniformLocation(program2, "NormalTransform");
-        Projection = gl.glGetUniformLocation(program2, "Projection");
-
-        // Set the value of the fragment shader texture sampler variable
-        //   ("texture") to the the appropriate texture unit. In this case,
-        //   zero, for GL_TEXTURE0 which was previously set by calling
-        //   glActiveTexture().
-        gl.glUniform1i( gl.glGetUniformLocation(program2, "tex"), 0 );
+        }
+        catch (IOException io) {
+            io.printStackTrace();
+        }
 
 
     }
 
 
-    private ByteBuffer readImage(String filename) throws IOException {
 
-        ByteBuffer imgbuf;
-        BufferedImage img = ImageIO.read(new FileInputStream(filename));
 
-        texWidth = img.getWidth();
-        texHeight = img.getHeight();
-        DataBufferByte datbuf = (DataBufferByte) img.getData().getDataBuffer();
-        imgbuf = ByteBuffer.wrap(datbuf.getData());
-        return imgbuf;
-    }
-
+    /**
+     * get key from keyboard to control the carema
+     * @param e key event
+     */
     @Override
     public void keyTyped(KeyEvent e) {
-        System.out.println("The charactor you typed : " + "\"" + e.getKeyChar() + "\"");
+        //System.out.println("The charactor you typed : " + "\"" + e.getKeyChar() + "\"");
         if(e.getKeyChar() == 'a')
             carema_x -= 0.1;
         if(e.getKeyChar() == 'd')

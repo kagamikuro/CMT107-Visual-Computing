@@ -14,7 +14,7 @@ uniform float Shininess;
 
 void main()
 {
-   // Transform vertex position into eye coordinates
+   // Basic.Transform vertex position into eye coordinates
     vec3 ecPosition = (ModelView * vPosition).xyz;
     // Here light position is defined in eye coordinates
     vec3 L = normalize( LightPosition.xyz - ecPosition );
@@ -24,7 +24,7 @@ void main()
     vec3 E = normalize( -ecPosition );
     vec3 H = normalize( L + E );
 
-    // Transform vertex normal into eye coordinates
+    // Basic.Transform vertex normal into eye coordinates
     vec3 N = normalize((NormalTransform *vec4(vNormal,0)).xyz);
 
     // Compute terms in the illumination equation
