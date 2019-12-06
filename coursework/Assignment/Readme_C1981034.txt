@@ -1,0 +1,25 @@
+Documentation
+------------
+
+This assignment code contains algorithms for computing Grapgics and Image Processing, which Graphics part is in the [CMT107-Final project] folder and Image Processing part is in the [Image Processing] folder,and these projects should be built and run on the Intellij IDEA with jogl API and jdk1.8.0_221. Information about the features implemented for each part will be described as below:
+
+Graphics(main method is in the Application class)
+	1.Rendering system
+	-UI design implemented
+	-lighting system implemented(can choose lighting material and set lighting position )
+	2.Navigation system
+	- camera control by keyboard
+	3.3D objects 
+	-sphere and teapot from lab class
+	-rugby object implemented base on the sphere object, by refactoring it's vertice and normal. 
+	4.Texture mapping
+	-texure mapping implemented correctly but due to some unexpected error it couldn't be shown in this appication,I will fix it in future. 
+
+
+Image Processing(main method is in the Application class,press 'p' to do the processing)
+	1.Harris corner detector algorithm
+	-some relative filters implemented(average filter,sobel edge filter,and gaussian filter)
+	-Harris algorothm implemented
+	-image load and process implemented
+
+
