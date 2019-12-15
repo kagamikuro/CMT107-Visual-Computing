@@ -435,15 +435,15 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
         T.initialize();
 
-        //Locate camera
-        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);
-
 
 
         T.translate((float)1,(float)2,(float)0);
         T.rotateX(270);
         T.rotateY(0);
         T.scale((float)0.1,(float)0.1,(float)0.1);
+
+        //Locate camera
+        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);
 
 
         gl.glUniformMatrix4fv( ModelView, 1, true, T.getTransformv(), 0 );
@@ -462,11 +462,13 @@ public class Application extends JFrame implements GLEventListener, MouseListene
 
         T.initialize();
 
-        //Locate camera
-        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);  	//Default
+
 
         T.translate((float)-1,(float)2,(float)0);
         T.scale((float)0.3,(float)0.3,(float)0.3);
+
+        //Locate camera
+        T.lookAt(carema_x, carema_y, carema_z, 0, 0, -100, 0, 1, 0);  	//Default
 
 
         gl.glUniformMatrix4fv( ModelView, 1, true, T.getTransformv(), 0 );
